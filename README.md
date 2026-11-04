@@ -3,7 +3,9 @@
 **Every sound is a function.** A tiny toolkit behind [@mathbeatlab](https://www.youtube.com/@mathbeatlab):
 write a techno track as a handful of math formulas, get **MIDI for your DAW** or **WAV stems synthesized straight from the formulas**: no samples, no presets.
 
-▶ Listen: [`examples/mix.mp3`](examples/mix.mp3) · MIDI: [`examples/song.mid`](examples/song.mid)
+▶ Listen: [`examples/mix.mp3`](examples/mix.mp3) · MIDI: [`examples/song.mid`](examples/song.mid) · stems: [`examples/stems/`](examples/stems)
+
+**No Python? Try it in 30 seconds:** click the green **Code → Download ZIP** button at the top of this page, unzip, and drag `examples/song.mid` and `examples/stems/*.wav` into your DAW at 140 BPM.
 
 ```
 python3 make_midi.py     # → out/song.mid    (kick, clap, hat, bass, acid + filter CC)
@@ -73,9 +75,9 @@ Everything is computed sample by sample:
 2. Drag `out/song.mid` into the project, or use *File → Import → MIDI File…*. You get one track per part.
 3. Kick, Clap and Hat are General MIDI drums on channel 10 (notes 36, 39, 42). Route them to Groove Agent SE or any drum sampler or synth.
 4. Put Bass and Acid on Retrologue, or any mono synth with a resonant filter. For the acid line, make the filter resonant and give it a short filter envelope.
-5. The Acid track carries **CC74** with the cutoff curve. Map CC74 to the synth's filter cutoff with the synth's MIDI-learn or Cubase's Quick Controls, and the x² sweep opens the filter.
+5. *Optional.* The Acid track also carries **CC74** with the cutoff curve. Most synths don't listen to it out of the box: map CC74 to the filter cutoff with the synth's MIDI learn or Cubase's Quick Controls, and the x² sweep opens the filter. Skip this step and the notes still play, just without the sweep. The acid stem below already has it.
 
-**Audio route: the formulas are the sound.** Drag `out/stems/*.wav` onto audio tracks. They line up from bar 1 and add up to the mix (before its soft limiter). Process them like any other audio: EQ, reverb, more distortion.
+**Audio route: the formulas are the sound.** Drag the WAVs onto audio tracks: ready-made ones are in `examples/stems/`, and your own renders go to `out/stems/`. They line up from bar 1 and add up to the mix (before its soft limiter). Process them like any other audio: EQ, reverb, more distortion.
 
 Mix and match: formula kick and bass as audio, the acid line as MIDI into your favourite synth.
 
@@ -98,5 +100,6 @@ If you'd rather write formulas *inside* the DAW:
 | `make_midi.py` | `song.py` → `out/song.mid` |
 | `make_wav.py` | `song.py` → `out/mix.wav` + `out/stems/` |
 | `beat.py` | helpers: `spike`, `mod`, scales, hit detection, MIDI and WAV writers |
+| `examples/` | the default song, rendered: `song.mid`, `stems/*.wav`, `mix.mp3` |
 
 MIT licensed: use it, break it, release tracks with it. If you make something, tag [@mathbeatlab](https://www.instagram.com/mathbeatlab).
