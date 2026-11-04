@@ -1,0 +1,219 @@
+desc:MathBeat - techno from equations
+//author: georgespring
+//tags: instrument synthesizer generator techno
+//
+// The same track as song.py, but running live inside your DAW.
+// Open the editor in ysfx, change a formula below, save, hit Play.
+// x = time in beats, taken from the DAW: x = 0, 1, 2, ... are the kicks.
+
+slider1:0<0,1,1{Follow DAW transport,Free run at DAW tempo}>Play
+slider2:45<24,72,1>Root note (MIDI, 45 = A2)
+slider3:0<0,2,1{Minor,Phrygian,Dorian}>Scale
+slider4:6<1,30,0.1>Kick decay (the 6 in kick)
+slider5:170<0,400,1>Kick pitch drop, Hz
+slider6:300<50,2000,1>Acid cutoff: from, Hz
+slider7:3500<0,8000,1>Acid cutoff: sweep, Hz
+slider8:0.15<0.05,1,0.01>Acid resonance (lower = sharper)
+slider9:0.75<0,1,0.01>Sidechain depth
+slider10:0<-60,6,0.1>Kick, dB
+slider11:0<-60,6,0.1>Clap, dB
+slider12:0<-60,6,0.1>Hat, dB
+slider13:0<-60,6,0.1>Bass, dB
+slider14:0<-60,6,0.1>Acid, dB
+slider15:0<-24,6,0.1>Master, dB
+slider16:0<0,1,1{Off,On}>Send MIDI notes out
+
+in_pin:none
+out_pin:left
+out_pin:right
+
+@init
+
+// ── helpers (no need to touch) ───────────────────────────────────────────────
+
+function mod(x, m) ( x - floor(x / m) * m );
+function fl(x) ( floor(x) );
+// e^(−decay·mod(x − offset, period)): jumps to 1 at offset, then decays. A drum hit.
+function spike(x, period, offset, decay) ( exp(-decay * mod(x - offset, period)) );
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  THE FORMULAS: edit these, save, play
+// ═══════════════════════════════════════════════════════════════════════════
+
+// rhythm: the value is the volume, a note fires where the curve jumps up
+
+function kick(x) ( spike(x, 1, 0, k_decay) );                          // e^(−6·mod(x,1)): four on the floor
+function clap(x) ( spike(x, 2, 1, 18) );                               // beats 2 and 4
+function hat(x)  ( spike(x, 1, 0.5, 30) + 0.35 * spike(x, 0.25, 0, 70) );   // offbeat + quiet 16ths
+function bass(x) ( spike(x, 0.25, 0, 14) * (mod(x, 1) >= 0.25) );      // rolling: 3 sixteenths after each kick
+function acid(x) ( spike(x, 0.25, 0, 5) * (mod(fl(4 * x), 3) != 2) );  // every 3rd 16th silent → 3 against 4
+
+// pitch: semitones above the root, snapped to the scale
+
+function bass_note(x) ( 5 * fl(mod(x, 8) / 4) + 7 * fl(mod(x, 8) / 6) - 12 );
+function acid_note(x) ( 12 * abs(sin($pi * x / 4)) );
+
+// modulation: acid filter in Hz, opens like x² over 2 bars, then snaps shut
+
+function cutoff(x) ( cut_from + cut_sweep * sqr(mod(x / 8, 1)) );
+
+// ═══════════════════════════════════════════════════════════════════════════
+
+JUMP = 0.3;    // how far a curve must jump to count as a hit
+
+scales = 0;    // three scales, 8 slots each
+scales[0] = 0; scales[1] = 2; scales[2] = 3; scales[3] = 5; scales[4] = 7; scales[5] = 8; scales[6] = 10;
+scales[8] = 0; scales[9] = 1; scales[10] = 3; scales[11] = 5; scales[12] = 7; scales[13] = 8; scales[14] = 10;
+scales[16] = 0; scales[17] = 2; scales[18] = 3; scales[19] = 5; scales[20] = 7; scales[21] = 9; scales[22] = 10;
+
+// nearest note of the scale, in semitones from the root
+function snap(s) local(o, d, i, c, best) (
+  o = floor(s / 12) - 1; best = 1000; d = 0;
+  loop(3,
+    i = 0;
+    loop(7,
+      c = 12 * (o + d) + scales[8 * scale_idx + i];
+      abs(c - s) < abs(best - s) ? best = c;
+      i += 1;
+    );
+    d += 1;
+  );
+  best
+);
+
+function hz(n) ( 440 * pow(2, (n - 69) / 12) );
+
+function soft(v) local(e) (
+  v > 15 ? 1 : (v < -15 ? -1 : (e = exp(2 * v); (e - 1) / (e + 1)));
+);
+
+// Chamberlin state-variable filter: lp, bp and hp at once
+function svf(v, cut, q) instance(lp, bp, hp) local(f) (
+  f = 2 * sin($pi * min(cut, srate / 7) / srate);   // above srate/7 it blows up
+  lp += f * bp;
+  hp = v - lp - q * bp;
+  bp += f * hp;
+);
+
+// MIDI out: one note per part, released when the next one comes
+function note(part, ch, n, vel) (
+  midi_on ? (
+    last[part] >= 0 ? midisend(si, $x80 | ch, last[part], 0);
+    midisend(si, $x90 | ch, n, max(1, floor(127 * min(vel, 1) + 0.5)));
+    last[part] = n;
+  );
+);
+function all_off() local(p) (
+  p = 0;
+  loop(5,
+    last[p] >= 0 ? midisend(0, $x80 | chan[p], last[p], 0);
+    last[p] = -1;
+    p += 1;
+  );
+);
+
+last = 100; chan = 110;   // per part: last note sent, MIDI channel
+loop(5, last[i] = -1; i += 1); i = 0;
+chan[0] = 9; chan[1] = 9; chan[2] = 9; chan[3] = 0; chan[4] = 1;
+
+x = 0;
+k_prev = k_since = k_ph = 0;
+b_prev = b_ph = b_amp = 0; b_f = 110;
+a_prev = a_ph = a_amp = 0; a_f = a_to = 110;
+was_playing = 0;
+
+@slider
+
+free = slider1;
+root = slider2;
+scale_idx = slider3;
+k_decay = slider4;
+k_drop = slider5;
+cut_from = slider6;
+cut_sweep = slider7;
+reso = slider8;
+duck_depth = slider9;
+g_kick = slider10 <= -60 ? 0 : pow(10, slider10 / 20);
+g_clap = slider11 <= -60 ? 0 : pow(10, slider11 / 20);
+g_hat  = slider12 <= -60 ? 0 : pow(10, slider12 / 20);
+g_bass = slider13 <= -60 ? 0 : pow(10, slider13 / 20);
+g_acid = slider14 <= -60 ? 0 : pow(10, slider14 / 20);
+master = 0.45 * pow(10, slider15 / 20);
+midi_on = slider16;
+
+@block
+
+playing = free || (play_state & 1);
+!free && playing ? x = beat_position;
+!playing && was_playing ? all_off();
+was_playing = playing;
+dx = tempo / 60 / srate;   // beats per sample
+si = 0;                    // sample index inside the block, for MIDI timing
+
+@sample
+
+playing ? (
+  noise = rand(2) - 1;
+
+  // kick: a sine whose pitch falls exponentially after each hit, driven through tanh
+  k = kick(x) * (g_kick > 0);
+  k - k_prev > JUMP ? (k_since = 0; k_ph = 0; note(0, 9, 36, k));
+  k_prev = k;
+  k_since += dx;
+  k_ph += 2 * $pi * (47 + k_drop * exp(-14 * k_since)) / srate;
+  k_ph > 2 * $pi ? k_ph -= 2 * $pi;
+  o_kick = soft(2.5 * sin(k_ph)) * k;
+
+  // sidechain: everything else ducks under the kick's own curve
+  duck = 1 - duck_depth * k;
+
+  // clap and hat: filtered noise, shaped by their rhythm functions
+  c = clap(x);
+  c - c_prev > JUMP ? note(1, 9, 39, c);
+  c_prev = c;
+  fclap.svf(noise, 1200, 0.8);
+  o_clap = 3 * fclap.bp * c;
+
+  h = hat(x);
+  h - h_prev > JUMP ? note(2, 9, 42, h);
+  h_prev = h;
+  fhat.svf(noise, 6000, 1);
+  o_hat = fhat.hp * h;
+
+  // bass: saw + sine, the note is taken from bass_note at each hit
+  b = bass(x);
+  b - b_prev > JUMP ? (
+    n = root + snap(bass_note(x));
+    b_f = hz(n);
+    note(3, 0, n, b);
+  );
+  b_prev = b;
+  b_amp += (b - b_amp) * 0.02;                   // ~1 ms smoothing: no clicks
+  b_ph = mod(b_ph + b_f / srate, 1);
+  fbass.svf(2 * b_ph - 1 + 0.6 * sin(2 * $pi * b_ph), 200 + 1200 * b, 0.7);
+  o_bass = soft(1.5 * fbass.lp) * b_amp * duck;
+
+  // acid: saw with a glide into a screaming resonant lowpass
+  a = acid(x);
+  a - a_prev > JUMP ? (
+    n = root + 12 + snap(acid_note(x));
+    a_to = hz(n);
+    note(4, 1, n, a);
+  );
+  a_prev = a;
+  a_f += (a_to - a_f) * 0.004;                   // the 303-style slide
+  a_amp += (a - a_amp) * 0.02;
+  a_ph = mod(a_ph + a_f / srate, 1);
+  facid.svf(2 * a_ph - 1, cutoff(x) * (0.5 + a), reso);
+  o_acid = soft(2 * facid.lp) * a_amp * duck;
+
+  // mix + soft limiter
+  mix = g_kick * o_kick + 0.5 * g_clap * o_clap + 0.18 * g_hat * o_hat
+      + 0.7 * g_bass * o_bass + 0.3 * g_acid * o_acid;
+  spl0 = spl1 = soft(2 * mix * master);
+
+  x += dx;
+  si += 1;
+) : (
+  spl0 = spl1 = 0;
+);

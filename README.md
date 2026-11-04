@@ -81,12 +81,36 @@ Everything is computed sample by sample:
 
 Mix and match: formula kick and bass as audio, the acid line as MIDI into your favourite synth.
 
+## Edit the formulas inside your DAW
+
+[`jsfx/mathbeat.jsfx`](jsfx/mathbeat.jsfx) is the same track as a live instrument. It follows your DAW's tempo and playhead, and the formulas sit at the top of the file, where you can edit them while the track plays. It runs in **ysfx**, a free plugin that hosts JSFX scripts (VST3 / AU / CLAP, Windows / macOS / Linux).
+
+1. Download ysfx from [its releases page](https://github.com/JoepVanlier/ysfx/releases): `YSFX.Windows.64-bit.VST3.zip` or `YSFX.macOS.VST3.zip`.
+2. Copy **`ysfx-s instrument.vst3`** to your VST3 folder:
+   - Windows: `C:\Program Files\Common Files\VST3`
+   - macOS: `~/Library/Audio/Plug-Ins/VST3`. The macOS builds aren't signed, so clear the quarantine flag once:
+     ```
+     xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"ysfx-s instrument.vst3"
+     ```
+3. In the DAW, create an instrument track with **ysfx-s instrument**. In Cubase, rescan in *Studio → VST Plug-in Manager* if it doesn't show up. In FL Studio, add it to the Channel rack and press *Find more plugins* in the plugin database if needed.
+4. In the plugin window, click **Load** and pick `mathbeat.jsfx`. Press play.
+5. Click **Edit**, change a formula in the `THE FORMULAS` block, and press **Save** (Ctrl+S). ysfx recompiles the script and keeps your knob settings.
+
+The knobs are normal plugin parameters, so you can automate them: kick decay, cutoff range, resonance, sidechain, root note, scale and a level per part. *Send MIDI notes out* also plays every hit as MIDI (drums on channel 10, bass on 1, acid on 2), if your DAW can route a plugin's MIDI output to other instruments.
+
+JSFX is a small C-like language. Things to know when editing:
+- `%` is integer-only, so use the `mod(x, m)` helper
+- comparisons give 1 or 0, so `(mod(x,1) >= 0.25)` works as an on/off gate
+- every line ends with `;`
+- a typo doesn't crash anything: ysfx shows the error with its line number (like `@init: 48: syntax error: missing ) or ]`), and the track plays again once you fix it and save
+
 ## Other DAWs
 
 The same files work everywhere: Ableton Live, FL Studio, Logic, Bitwig, Reaper, Studio One. Import the MIDI or drag in the WAVs, then map CC74 to cutoff in the synth.
 
-If you'd rather write formulas *inside* the DAW:
+Other ways to write formulas *inside* the DAW:
 
+- **ysfx + `mathbeat.jsfx`**: see above
 - **Surge XT** (free, VST3/AU/CLAP): its *Formula* modulator is a Lua script, so `mod`, `exp` and `sin` curves go straight to any parameter
 - **Serum**: the wavetable editor has a formula parser for oscillator shapes
 - **Cardinal** (free VCV Rack as a plugin): build the whole patch as modules inside your DAW
@@ -100,6 +124,7 @@ If you'd rather write formulas *inside* the DAW:
 | `make_midi.py` | `song.py` → `out/song.mid` |
 | `make_wav.py` | `song.py` → `out/mix.wav` + `out/stems/` |
 | `beat.py` | helpers: `spike`, `mod`, scales, hit detection, MIDI and WAV writers |
+| `jsfx/mathbeat.jsfx` | the same track as a live instrument for ysfx: edit the formulas inside your DAW |
 | `examples/` | the default song, rendered: `song.mid`, `stems/*.wav`, `mix.mp3` |
 
 MIT licensed: use it, break it, release tracks with it. If you make something, tag [@mathbeatlab](https://www.instagram.com/mathbeatlab).
